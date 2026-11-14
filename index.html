@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<title>Réassort</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Réassort">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<style>
+  :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b2938; background: #f2f4f8; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; }
+  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 120px; }
+  h1 { font-size: 26px; margin: 2px 0 4px; }
+  small, .notice { color: #64748b; font-size: 14px; }
+  .panel { background: #fff; border-radius: 16px; padding: 14px; margin: 12px 0; box-shadow: 0 1px 6px #12233a1a; }
+  button { border: 0; border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px; background: #1564d4; color: #fff; }
+  button:disabled { opacity: .5; }
+  .secondary { background: #e8effa; color: #1754a7; }
+  .green { background: #078447; }
+  .full { width: 100%; }
+  .two { display: flex; gap: 8px; }
+  .two > * { flex: 1; }
+  input[type=text] { font-size: 20px; width: 100%; padding: 14px; border: 2px solid #cad5e3; border-radius: 12px; margin: 8px 0; }
+  #reader { width: 100%; border-radius: 12px; overflow: hidden; margin-top: 10px; }
+  #reader video { border-radius: 12px; }
+  .hidden { display: none !important; }
+  #last { font-size: 15px; padding: 10px 12px; border-radius: 10px; margin-top: 10px; background: #eef7f1; color: #065f36; }
+  #last.err { background: #fdecea; color: #b42318; }
+  #last.flash { animation: flash .35s; }
+  @keyframes flash { from { background: #b7f0cd; } }
+  .row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #e7ebf1; }
+  .row:last-child { border: 0; }
+  .row .txt { flex: 1; min-width: 0; }
+  .row .nom { font-weight: 600; font-size: 15px; }
+  .row .code { font-size: 12px; color: #758294; }
+  .pm { width: 44px; height: 44px; padding: 0; font-size: 24px; line-height: 44px; background: #e8effa; color: #1754a7; border-radius: 50%; }
+  .q { min-width: 38px; text-align: center; font-weight: 800; font-size: 20px; }
+  .row.hl { background: #fffbe6; }
+  #sync { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
+  .ok { color: #078447; } .wait { color: #b45309; } .err { color: #b42318; }
+  #modal, #login { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  #modal .panel, #login .panel { width: 100%; max-width: 420px; }
+  textarea { width: 100%; height: 160px; font-size: 14px; border-radius: 10px; border: 1px solid #cad5e3; padding: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <small>ÉTABLISSEMENT FÉLIX</small>
+  <h1>Réassort 🚚</h1>
+
+  <div class="panel">
+    <div class="two">
+      <button id="btnCam" onclick="toggleCam()">📷 Caméra</button>
+      <button class="secondary" onclick="$('photo').click()">🖼️ Photo</button>
+    </div>
+    <input id="photo" type="file" accept="image/*" capture="environment" class="hidden" onchange="scanPhoto(this)">
+    <div id="reader" class="hidden"></div>
+    <div id="fileReader" class="hidden"></div>
+
+    <input id="barcode" type="text" placeholder="Scannette ou saisie du code" autocomplete="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();saisie();}">
+    <div id="last" class="hidden"></div>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:18px">À commander</b>
+      <small id="count"></small>
+    </div>
+    <div id="liste"></div>
+  </div>
+
+  <div class="two">
+    <button class="secondary" onclick="copier()">📋 Copier la liste</button>
+    <button class="green" onclick="commandePassee()">✅ Commande passée</button>
+  </div>
+  <textarea id="copie" class="hidden" readonly></textarea>
+</main>
+
+<div id="sync" class="ok">Chargement…</div>
+
+<div id="login" class="hidden">
+  <div class="panel">
+    <b>Code d'accès</b>
+    <p class="notice">À taper une seule fois sur ce téléphone.</p>
+    <input id="lCle" type="text" placeholder="felix-……" autocomplete="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();validerCle();}">
+    <button class="full" onclick="validerCle()">Valider</button>
+    <p id="lErr" class="err"></p>
+  </div>
+</div>
+
+<div id="modal" class="hidden">
+  <div class="panel">
+    <b>Code inconnu : <span id="mCode"></span></b>
+    <p class="notice">Il n'est pas dans ton catalogue. Donne-lui un nom, il sera ajouté au catalogue (famille « À classer »).</p>
+    <input id="mNom" type="text" placeholder="Ex : Raccord PER 16 x 1/2" autocomplete="off">
+    <div class="two">
+      <button class="secondary" onclick="fermerModal(false)">Ignorer</button>
+      <button onclick="fermerModal(true)">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const API = 'https://script.google.com/macros/s/AKfycbyWsIu313KpQWmQyhYi5U5PwHT_DkFwlSmeFQF5YrK7Xr3FqttKmF_o4pWxyJULxSzK/exec';
+  const CLE = 'reassort_file_v2';
+  const CLE_ACCES = 'reassort_cle';
+  let cle = '';
+  try { cle = localStorage.getItem(CLE_ACCES) || ''; } catch (e) {}
+
+  async function api(action, data) {
+    const r = await fetch(API, { method: 'POST', body: JSON.stringify({ cle: cle, action: action, data: data }) });
+    const j = await r.json();
+    if (!j.ok) { const e = new Error(j.error || 'Erreur'); e.acces = /accès/.test(j.error || ''); throw e; }
+    return j;
+  }
+
+  function demanderCle(msg) {
+    $('lErr').textContent = msg || '';
+    $('login').classList.remove('hidden');
+    setTimeout(() => $('lCle').focus(), 50);
+  }
+  function validerCle() {
+    cle = $('lCle').value.trim();
+    try { localStorage.setItem(CLE_ACCES, cle); } catch (e) {}
+    $('login').classList.add('hidden');
+    rafraichir();
+  }
+
+  let cat = {};          // code -> désignation
+  try { cat = JSON.parse(localStorage.getItem('reassort_cat') || '{}'); } catch (e) {}
+  let serveur = [];      // liste confirmée par le Sheet
+  let file = charger();  // mouvements pas encore envoyés
+  let envoiEnCours = false;
+  let minuterie = null;
+  let dernierCode = '';
+  let cam = null, lastSeen = { code: '', t: 0 };
+  let audio = null;
+  let modalOuvert = false;
+
+  function charger() {
+    try { return JSON.parse(localStorage.getItem(CLE) || '[]'); } catch (e) { return []; }
+  }
+  function sauver() {
+    try { localStorage.setItem(CLE, JSON.stringify(file)); } catch (e) {}
+  }
+
+  // ---------- Son ----------
+  function initAudio() {
+    try { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {}
+  }
+  function bip(ok) {
+    if (!audio) return;
+    try {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = ok ? 1400 : 300;
+      g.gain.value = 0.15;
+      o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + (ok ? 0.08 : 0.3));
+    } catch (e) {}
+  }
+
+  // ---------- Ajout / retrait ----------
+  function ajouter(codeBrut) {
+    const code = String(codeBrut || '').trim();
+    if (!code) return;
+    if (!/^[0-9A-Za-z._\-\/]{1,64}$/.test(code)) { info('Code illisible : ' + code, true); bip(false); return; }
+    if (!(code in cat)) { ouvrirModal(code); bip(false); return; }
+    mouvement(code, 1);
+    bip(true);
+    info('✓ ' + cat[code] + '  (+1 → ' + qteDe(code) + ')');
+  }
+
+  function mouvement(code, delta, name) {
+    const m = { code: code, delta: delta };
+    if (name) m.name = name;
+    file.push(m);
+    sauver();
+    dernierCode = code;
+    afficher();
+    planifierEnvoi();
+  }
+
+  function info(t, err) {
+    const el = $('last');
+    el.textContent = t;
+    el.className = err ? 'err' : '';
+    void el.offsetWidth; el.classList.add('flash');
+  }
+
+  function saisie() {
+    initAudio();
+    const v = $('barcode').value;
+    $('barcode').value = '';
+    ajouter(v);
+  }
+
+  // ---------- Code inconnu ----------
+  function ouvrirModal(code) {
+    modalOuvert = true;
+    $('mCode').textContent = code;
+    $('mNom').value = '';
+    $('modal').classList.remove('hidden');
+    setTimeout(() => $('mNom').focus(), 50);
+  }
+  function fermerModal(ok) {
+    const code = $('mCode').textContent;
+    const nom = $('mNom').value.trim() || 'Article sans nom';
+    $('modal').classList.add('hidden');
+    modalOuvert = false;
+    lastSeen = { code: code, t: Date.now() };
+    if (ok) {
+      cat[code] = nom;
+      mouvement(code, 1, nom);
+      info('✓ ' + nom + ' ajouté au catalogue (+1)');
+    }
+  }
+
+  // ---------- Liste ----------
+  function listeAffichee() {
+    const m = {};
+    serveur.forEach(x => m[x.code] = { code: x.code, name: x.name, qty: x.qty });
+    file.forEach(f => {
+      if (!m[f.code]) m[f.code] = { code: f.code, name: cat[f.code] || f.name || 'Article sans nom', qty: 0 };
+      m[f.code].qty += f.delta;
+    });
+    return Object.values(m).filter(x => x.qty > 0).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  }
+  function qteDe(code) {
+    const x = listeAffichee().find(i => i.code === code);
+    return x ? x.qty : 0;
+  }
+
+  function esc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function afficher() {
+    const l = listeAffichee();
+    const total = l.reduce((s, x) => s + x.qty, 0);
+    $('count').textContent = l.length + ' réf. · ' + total + ' pièces';
+    $('liste').innerHTML = l.length ? l.map(x =>
+      '<div class="row' + (x.code === dernierCode ? ' hl' : '') + '">' +
+        '<div class="txt"><div class="nom">' + esc(x.name) + '</div><div class="code">' + esc(x.code) + '</div></div>' +
+        '<button class="pm" onclick="mouvement(\'' + esc(x.code) + '\',-1)">−</button>' +
+        '<div class="q">' + x.qty + '</div>' +
+        '<button class="pm" onclick="mouvement(\'' + esc(x.code) + '\',1)">+</button>' +
+      '</div>').join('')
+      : '<p class="notice">Rien à commander pour le moment.</p>';
+    etatSync();
+  }
+
+  // ---------- Synchronisation avec le Sheet ----------
+  function etatSync(err) {
+    const s = $('sync');
+    if (err) { s.className = 'err'; s.textContent = '⚠️ Pas de connexion — ' + file.length + ' scan(s) gardé(s) sur le téléphone, nouvel essai auto'; }
+    else if (file.length || envoiEnCours) { s.className = 'wait'; s.textContent = '⏳ Envoi au Sheet… (' + file.length + ')'; }
+    else { s.className = 'ok'; s.textContent = '✓ Tout est enregistré dans le Sheet'; }
+  }
+
+  function planifierEnvoi(delai) {
+    clearTimeout(minuterie);
+    minuterie = setTimeout(envoyer, delai ?? 1500);
+  }
+
+  function envoyer(apres) {
+    if (envoiEnCours) return;
+    if (!file.length) { if (apres) apres(); return; }
+    envoiEnCours = true;
+    const lot = file.slice();
+    etatSync();
+    api('appliquer', lot).then(r => {
+      file = file.slice(lot.length);
+      sauver();
+      serveur = r.liste;
+      envoiEnCours = false;
+      afficher();
+      if (file.length) planifierEnvoi(300); else if (apres) apres();
+    }).catch(e => {
+      envoiEnCours = false;
+      if (e.acces) { demanderCle(e.message); return; }
+      etatSync(true);
+      planifierEnvoi(8000);
+    });
+  }
+
+  function rafraichir() {
+    if (!cle) { demanderCle(); return; }
+    api('charger').then(r => {
+      cat = r.catalogue;
+      try { localStorage.setItem('reassort_cat', JSON.stringify(cat)); } catch (e) {}
+      serveur = r.liste;
+      afficher();
+      if (file.length) planifierEnvoi(300);
+    }).catch(e => {
+      if (e.acces) { demanderCle(e.message); return; }
+      etatSync(true);
+      setTimeout(rafraichir, 8000);
+    });
+  }
+
+  // ---------- Commande ----------
+  function texteCommande() {
+    const l = listeAffichee();
+    const d = new Date().toLocaleDateString('fr-FR');
+    return 'Commande Établissement Félix — ' + d + '\n\n' +
+      l.map(x => x.code + ' — ' + x.name + ' — Qté ' + x.qty).join('\n');
+  }
+
+  async function copier() {
+    if (!listeAffichee().length) { info('La liste est vide.', true); return; }
+    const t = texteCommande();
+    const ta = $('copie');
+    ta.value = t;
+    ta.classList.remove('hidden');
+    try { await navigator.clipboard.writeText(t); info('📋 Liste copiée, colle-la dans ton mail ou WhatsApp'); return; } catch (e) {}
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); info('📋 Liste copiée, colle-la dans ton mail ou WhatsApp'); }
+    catch (e) { info('Sélectionne le texte ci-dessous et copie-le.'); }
+  }
+
+  function commandePassee() {
+    if (!listeAffichee().length) { info('La liste est vide.', true); return; }
+    if (!confirm('La commande est passée ? La liste sera vidée et archivée dans « Historique commandes ».')) return;
+    clearTimeout(minuterie);
+    etatSync();
+    envoyer(() => {
+      envoiEnCours = true;
+      api('commander').then(r => {
+        envoiEnCours = false;
+        serveur = r.liste;
+        dernierCode = '';
+        $('copie').classList.add('hidden');
+        afficher();
+        info('✅ Commande archivée');
+      }).catch(e => { envoiEnCours = false; info(e.message || String(e), true); etatSync(); });
+    });
+  }
+
+  // ---------- Caméra ----------
+  function formats() {
+    const F = Html5QrcodeSupportedFormats;
+    return [F.EAN_13, F.EAN_8, F.CODE_128, F.CODE_39, F.UPC_A, F.UPC_E, F.ITF, F.CODABAR, F.QR_CODE];
+  }
+
+  function surDetection(code) {
+    const now = Date.now();
+    if (modalOuvert) return;
+    // Même code encore devant l'objectif : on ne compte pas en double
+    if (code === lastSeen.code && now - lastSeen.t < 1500) { lastSeen.t = now; return; }
+    lastSeen = { code: code, t: now };
+    ajouter(code);
+  }
+
+  async function toggleCam() {
+    initAudio();
+    if (cam) {
+      try { await cam.stop(); await cam.clear(); } catch (e) {}
+      cam = null;
+      $('reader').classList.add('hidden');
+      $('btnCam').textContent = '📷 Caméra';
+      return;
+    }
+    if (typeof Html5Qrcode === 'undefined') { info('Module caméra pas chargé (réseau ?). Utilise le bouton Photo.', true); return; }
+    $('reader').classList.remove('hidden');
+    try {
+      cam = new Html5Qrcode('reader', { formatsToSupport: formats(), verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+      await cam.start(
+        { facingMode: 'environment' },
+        { fps: 15, qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(Math.min(h, w) * 0.45) }) },
+        surDetection,
+        () => {}
+      );
+      $('btnCam').textContent = '⏹ Arrêter';
+      info('Caméra active : passe les codes les uns après les autres');
+    } catch (e) {
+      cam = null;
+      $('reader').classList.add('hidden');
+      info('Caméra refusée. Sur l\'iPhone : Réglages → Safari → Caméra → Autoriser. (' + e + ')', true);
+    }
+  }
+
+  // Photo : marche toujours, même si la caméra en direct est bloquée
+  async function scanPhoto(input) {
+    initAudio();
+    const f = input.files && input.files[0];
+    input.value = '';
+    if (!f) return;
+    if (typeof Html5Qrcode === 'undefined') { info('Module de lecture pas chargé (réseau ?).', true); return; }
+    try {
+      const lecteur = new Html5Qrcode('fileReader', { formatsToSupport: formats(), verbose: false });
+      const code = await lecteur.scanFile(f, false);
+      try { lecteur.clear(); } catch (e) {}
+      ajouter(code);
+    } catch (e) {
+      info('Code-barres non trouvé sur la photo. Rapproche-toi et évite les reflets.', true);
+      bip(false);
+    }
+  }
+
+  // Si on quitte l'appli, on envoie ce qui reste
+  document.addEventListener('visibilitychange', () => { if (document.hidden) envoyer(); });
+
+  afficher();
+  rafraichir();
+</script>
+</body>
+</html>
