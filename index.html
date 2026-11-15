@@ -13,7 +13,7 @@
   :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b2938; background: #f8f9fb; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; }
-  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 190px; }
+  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 230px; }
   .row.zero { opacity: .45; }
   h1 { font-size: 26px; margin: 2px 0 4px; }
   small, .notice { color: #64748b; font-size: 14px; }
@@ -31,6 +31,13 @@
   .cmd .det .l { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid #eef1f5; font-size: 14px; }
   .cmd .det .l span:first-child { flex: 1; }
   .cmd .det .l small { display: block; }
+  .page { position: fixed; inset: 0; z-index: 4; overflow-y: auto; -webkit-overflow-scrolling: touch; background: #f8f9fb;
+    padding: calc(12px + env(safe-area-inset-top)) 14px calc(150px + env(safe-area-inset-bottom)); }
+  .page > * { max-width: 600px; margin-left: auto; margin-right: auto; }
+  .pageTop { position: sticky; top: 0; z-index: 1; padding: 4px 0; }
+  #nav { position: fixed; left: 0; right: 0; bottom: calc(40px + env(safe-area-inset-bottom)); z-index: 6; display: flex; gap: 8px; padding: 8px 12px; background: #fff; border-top: 1px solid #e2e6ec; }
+  #nav button { flex: 1; padding: 12px; background: #f3f5f8; color: #1b2938; border: 1px solid #e2e6ec; }
+  #nav button.on { background: #1564d4; color: #fff; border-color: #1564d4; }
   .panel { background: #fff; border-radius: 16px; padding: 14px; margin: 12px 0; box-shadow: 0 1px 6px #12233a1a; }
   button { border: 0; border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px; background: #1564d4; color: #fff; }
   button:disabled { opacity: .5; }
@@ -43,7 +50,7 @@
   #reader { width: 100%; border-radius: 12px; overflow: hidden; margin-top: 10px; }
   #reader video { border-radius: 12px; }
   .hidden { display: none !important; }
-  #last { position: fixed; left: 10px; right: 10px; bottom: calc(48px + env(safe-area-inset-bottom)); z-index: 5; max-width: 580px; margin: auto;
+  #last { position: fixed; left: 10px; right: 10px; bottom: calc(110px + env(safe-area-inset-bottom)); z-index: 7; max-width: 580px; margin: auto;
     font-size: 15px; padding: 10px 12px; border-radius: 10px; background: #eef7f1; color: #065f36; box-shadow: 0 2px 10px #12233a33; pointer-events: none; }
   #last.err { background: #fdecea; color: #b42318; }
   #last.flash { animation: flash .35s; }
@@ -70,7 +77,7 @@
   .touches button { padding: 16px 0; font-size: 24px; background: #e8effa; color: #1b2938; }
   .lettres { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 6px; }
   .lettres button { padding: 10px 0; font-size: 16px; background: #f1f5f9; color: #1b2938; }
-  #sync { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
+  #sync { z-index: 6; position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
   .ok { color: #078447; } .wait { color: #b45309; } .err { color: #b42318; }
   #modal, #login { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
   #modal .panel, #login .panel { width: 100%; max-width: 420px; }
@@ -114,13 +121,7 @@
     <div id="liste"></div>
   </div>
 
-  <div class="panel p-fav">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <b style="font-size:18px">⭐ Favoris</b>
-      <small>appuie sur + pour ajouter à la commande</small>
-    </div>
-    <div id="favs"></div>
-  </div>
+
 
   <div class="two">
     <button class="secondary" onclick="copier()">📋 Copier la liste</button>
@@ -128,6 +129,22 @@
   </div>
   <textarea id="copie" class="hidden" readonly></textarea>
 
+
+</main>
+
+<section id="pgFav" class="page hidden">
+  <div class="pageTop"><button class="secondary" onclick="fermerPage()">← Retour au scan</button></div>
+  <div class="panel p-fav">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:18px">⭐ Favoris</b>
+      <small>appuie sur + pour ajouter à la commande</small>
+    </div>
+    <div id="favs"></div>
+  </div>
+</section>
+
+<section id="pgHisto" class="page hidden">
+  <div class="pageTop"><button class="secondary" onclick="fermerPage()">← Retour au scan</button></div>
   <div class="panel p-histo">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b style="font-size:18px">📜 Historique des commandes</b>
@@ -135,7 +152,12 @@
     </div>
     <div id="histo"><p class="notice">Chargement…</p></div>
   </div>
-</main>
+</section>
+
+<nav id="nav">
+  <button id="nFav" onclick="ouvrirPage('pgFav')">⭐ Favoris</button>
+  <button id="nHisto" onclick="ouvrirPage('pgHisto')">📜 Historique</button>
+</nav>
 
 <div id="sync" class="ok">Chargement…</div>
 
@@ -498,6 +520,20 @@
       etatSync(true);
       setTimeout(rafraichir, 8000);
     });
+  }
+
+  // ---------- Pages Favoris / Historique ----------
+  function ouvrirPage(id) {
+    const deja = !$(id).classList.contains('hidden');
+    fermerPage();
+    if (deja) return;
+    $(id).classList.remove('hidden'); $(id).scrollTop = 0;
+    $(id === 'pgFav' ? 'nFav' : 'nHisto').classList.add('on');
+  }
+  function fermerPage() {
+    ['pgFav', 'pgHisto'].forEach(p => $(p).classList.add('hidden'));
+    $('nFav').classList.remove('on'); $('nHisto').classList.remove('on');
+    window.scrollTo(0, 0);
   }
 
   // ---------- Historique ----------
