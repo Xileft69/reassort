@@ -38,6 +38,11 @@
   .row .nom { font-weight: 600; font-size: 15px; }
   .row .code { font-size: 12px; color: #758294; }
   .pm { width: 44px; height: 44px; padding: 0; font-size: 24px; line-height: 44px; background: #e8effa; color: #1754a7; border-radius: 50%; }
+  .pm.plus { background: #078447; color: #fff; }
+  .pm.moins { background: #d92d20; color: #fff; }
+  .star { background: none; color: #c9a400; font-size: 22px; padding: 4px; width: 34px; }
+  .star.off { color: #cbd5e1; }
+  #masse textarea { height: 140px; font-size: 18px; font-family: ui-monospace, monospace; }
   .q { min-width: 38px; text-align: center; font-weight: 800; font-size: 20px; }
   .row.hl { background: #fffbe6; }
   #sync { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
@@ -49,13 +54,13 @@
 </head>
 <body>
 <main>
-  <small>ÉTABLISSEMENT FÉLIX</small>
+  <small>ETABLISSEMENT FELIX</small>
   <h1>Réassort 🚚</h1>
 
   <div class="panel">
     <div class="two">
-      <button id="btnCam" onclick="toggleCam()">📷 Caméra</button>
-      <button class="secondary" onclick="$('photo').click()">🖼️ Photo</button>
+      <button id="btnCam" onclick="toggleCam()">📷 Scan</button>
+      <button class="secondary" onclick="$('photo').click()">🖼️ Import photo</button>
     </div>
     <input id="photo" type="file" accept="image/*" capture="environment" class="hidden" onchange="scanPhoto(this)">
     <div id="reader" class="hidden"></div>
@@ -64,6 +69,15 @@
     <input id="barcode" type="text" placeholder="Scannette ou saisie du code" autocomplete="off" autocapitalize="off" spellcheck="false"
       onkeydown="if(event.key==='Enter'){event.preventDefault();saisie();}">
     <div id="last" class="hidden"></div>
+    <button class="secondary full" style="margin-top:10px" onclick="toggleMasse()">📥 Import en masse (scannette)</button>
+    <div id="masse" class="hidden">
+      <p class="notice">Clique dans la case, puis appuie sur « envoyer » sur la scanette : tous les codes de la journée se tapent d'un coup, un par ligne. Ensuite, « Importer tout ».</p>
+      <textarea id="masseTxt" placeholder="Un code par ligne" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+      <div class="two">
+        <button class="secondary" onclick="$('masseTxt').value='';majMasse()">Effacer</button>
+        <button class="green" id="btnMasse" onclick="importerMasse()">Importer tout</button>
+      </div>
+    </div>
   </div>
 
   <div class="panel">
@@ -72,6 +86,14 @@
       <small id="count"></small>
     </div>
     <div id="liste"></div>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:18px">⭐ Favoris</b>
+      <small>appuie sur + pour ajouter à la commande</small>
+    </div>
+    <div id="favs"></div>
   </div>
 
   <div class="two">
@@ -174,6 +196,7 @@
     if (!/^[0-9A-Za-z._\-\/]{1,64}$/.test(code)) { info('Code illisible : ' + code, true); bip(false); return; }
     if (!(code in cat)) { ouvrirModal(code); bip(false); return; }
     mouvement(code, 1);
+    compter(code);
     bip(true);
     info('✓ ' + cat[code] + '  (+1 → ' + qteDe(code) + ')');
   }
@@ -219,8 +242,100 @@
     if (ok) {
       cat[code] = nom;
       mouvement(code, 1, nom);
+      compter(code);
       info('✓ ' + nom + ' ajouté au catalogue (+1)');
     }
+    setTimeout(suiteInconnus, 100);
+  }
+
+  // ---------- Import en masse ----------
+  let inconnus = [];
+  function toggleMasse() {
+    initAudio();
+    const m = $('masse');
+    m.classList.toggle('hidden');
+    if (!m.classList.contains('hidden')) setTimeout(() => $('masseTxt').focus(), 50);
+  }
+  function codesMasse() {
+    return $('masseTxt').value.split(/[\s,;]+/).map(c => c.trim()).filter(Boolean);
+  }
+  function majMasse() {
+    const n = codesMasse().length;
+    $('btnMasse').textContent = n ? 'Importer tout (' + n + ')' : 'Importer tout';
+  }
+  function importerMasse() {
+    initAudio();
+    const codes = codesMasse();
+    if (!codes.length) { info('Aucun code à importer.', true); return; }
+    let ok = 0, mauvais = 0;
+    inconnus = [];
+    codes.forEach(code => {
+      if (!/^[0-9A-Za-z._\-\/]{1,64}$/.test(code)) { mauvais++; return; }
+      if (!(code in cat)) { inconnus.push(code); return; }
+      file.push({ code: code, delta: 1 });
+      compter(code, true);
+      dernierCode = code;
+      ok++;
+    });
+    sauver();
+    sauverFreq();
+    afficher();
+    planifierEnvoi(300);
+    $('masseTxt').value = '';
+    majMasse();
+    bip(ok > 0);
+    let t = '✓ ' + ok + ' code(s) importé(s)';
+    if (inconnus.length) t += ' · ' + inconnus.length + ' inconnu(s) à nommer';
+    if (mauvais) t += ' · ' + mauvais + ' illisible(s)';
+    info(t, ok === 0);
+    suiteInconnus();
+  }
+  function suiteInconnus() {
+    if (modalOuvert || !inconnus.length) return;
+    ouvrirModal(inconnus.shift());
+  }
+  // ---------- Favoris ----------
+  let freq = {}, epingles = [];
+  try { freq = JSON.parse(localStorage.getItem('reassort_freq') || '{}'); } catch (e) {}
+  try { epingles = JSON.parse(localStorage.getItem('reassort_fav') || '[]'); } catch (e) {}
+  function sauverFreq() {
+    try { localStorage.setItem('reassort_freq', JSON.stringify(freq)); localStorage.setItem('reassort_fav', JSON.stringify(epingles)); } catch (e) {}
+  }
+  function compter(code, sansSauver) {
+    freq[code] = (freq[code] || 0) + 1;
+    if (!sansSauver) sauverFreq();
+  }
+  function plus(code) {
+    initAudio();
+    mouvement(code, 1);
+    compter(code);
+    bip(true);
+    info('✓ ' + (cat[code] || code) + '  (+1 → ' + qteDe(code) + ')');
+  }
+  function basculerEtoile(code) {
+    const i = epingles.indexOf(code);
+    if (i >= 0) epingles.splice(i, 1); else epingles.push(code);
+    sauverFreq();
+    afficher();
+  }
+  function btnEtoile(code) {
+    const on = epingles.includes(code);
+    return '<button class="star' + (on ? '' : ' off') + '" title="Favori" onclick="basculerEtoile(\'' + esc(code) + '\')">' + (on ? '★' : '☆') + '</button>';
+  }
+  function listeFavs() {
+    const auto = Object.keys(freq).filter(c => !epingles.includes(c)).sort((a, b) => freq[b] - freq[a]);
+    return epingles.concat(auto).filter(c => c in cat).slice(0, 20);
+  }
+  function afficherFavs() {
+    const l = listeFavs();
+    $('favs').innerHTML = l.length ? l.map(c =>
+      '<div class="row">' +
+        '<div class="txt"><div class="nom">' + esc(cat[c]) + '</div><div class="code">' + esc(c) + (freq[c] ? ' · ' + freq[c] + ' fois' : '') + '</div></div>' +
+        btnEtoile(c) +
+        '<div class="q">' + (qteDe(c) || '') + '</div>' +
+        '<button class="pm plus" onclick="plus(\'' + esc(c) + '\')">+</button>' +
+      '</div>').join('')
+      : '<p class="notice">Tes articles les plus scannés apparaîtront ici tout seuls (20 max). Tu peux aussi en épingler avec ☆ dans la liste À commander.</p>';
   }
 
   // ---------- Liste ----------
@@ -249,11 +364,13 @@
     $('liste').innerHTML = l.length ? l.map(x =>
       '<div class="row' + (x.code === dernierCode ? ' hl' : '') + '">' +
         '<div class="txt"><div class="nom">' + esc(x.name) + '</div><div class="code">' + esc(x.code) + '</div></div>' +
-        '<button class="pm" onclick="mouvement(\'' + esc(x.code) + '\',-1)">−</button>' +
+        btnEtoile(x.code) +
+        '<button class="pm moins" onclick="mouvement(\'' + esc(x.code) + '\',-1)">−</button>' +
         '<div class="q">' + x.qty + '</div>' +
-        '<button class="pm" onclick="mouvement(\'' + esc(x.code) + '\',1)">+</button>' +
+        '<button class="pm plus" onclick="plus(\'' + esc(x.code) + '\')">+</button>' +
       '</div>').join('')
       : '<p class="notice">Rien à commander pour le moment.</p>';
+    afficherFavs();
     etatSync();
   }
 
@@ -365,10 +482,10 @@
       try { await cam.stop(); await cam.clear(); } catch (e) {}
       cam = null;
       $('reader').classList.add('hidden');
-      $('btnCam').textContent = '📷 Caméra';
+      $('btnCam').textContent = '📷 Scan';
       return;
     }
-    if (typeof Html5Qrcode === 'undefined') { info('Module caméra pas chargé (réseau ?). Utilise le bouton Photo.', true); return; }
+    if (typeof Html5Qrcode === 'undefined') { info('Module caméra pas chargé (réseau ?). Utilise le bouton Import photo.', true); return; }
     $('reader').classList.remove('hidden');
     try {
       cam = new Html5Qrcode('reader', { formatsToSupport: formats(), verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
@@ -408,6 +525,7 @@
   // Si on quitte l'appli, on envoie ce qui reste
   document.addEventListener('visibilitychange', () => { if (document.hidden) envoyer(); });
 
+  $('masseTxt').addEventListener('input', majMasse);
   afficher();
   rafraichir();
 </script>
