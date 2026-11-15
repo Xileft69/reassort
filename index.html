@@ -526,6 +526,20 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) envoyer(); });
 
   $('masseTxt').addEventListener('input', majMasse);
+  // Scannette sans case sélectionnée : l'appli écoute les touches directement
+  let tampon = '', tamponT = 0;
+  document.addEventListener('keydown', e => {
+    const t = e.target;
+    if (modalOuvert || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'))) return;
+    const now = Date.now();
+    if (now - tamponT > 1000) tampon = '';
+    tamponT = now;
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (tampon) { e.preventDefault(); initAudio(); ajouter(tampon); tampon = ''; }
+      return;
+    }
+    if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey) tampon += e.key;
+  });
   afficher();
   rafraichir();
 </script>
