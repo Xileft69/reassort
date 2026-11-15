@@ -398,11 +398,11 @@
       if (!m[f.code]) m[f.code] = { code: f.code, name: cat[f.code] || f.name || 'Article sans nom', qty: 0 };
       m[f.code].qty += f.delta;
     });
-    // Ordre figé pendant la session : les nouvelles réf. s'ajoutent en bas, une ligne à 0 reste en place (grisée)
+    // Ordre figé pendant la session : les nouvelles réf. s'ajoutent en bas, une ligne à 0 disparaît
     if (!ordreCmd.length) ordreCmd = Object.values(m).filter(x => x.qty > 0).sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(x => x.code);
     Object.values(m).forEach(x => { if (x.qty > 0 && !ordreCmd.includes(x.code)) ordreCmd.push(x.code); });
-    return ordreCmd.map(c => m[c] || { code: c, name: cat[c] || 'Article sans nom', qty: 0 })
-      .map(x => (x.qty < 0 ? Object.assign(x, { qty: 0 }) : x));
+    ordreCmd = ordreCmd.filter(c => m[c] && m[c].qty > 0);
+    return ordreCmd.map(c => m[c]);
   }
   function listeACommander() { return listeAffichee().filter(x => x.qty > 0); }
   function qteDe(code) {
