@@ -10,12 +10,16 @@
 <link rel="icon" href="icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <style>
-  :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b2938; background: #f2f4f8; }
+  :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b2938; background: #f8f9fb; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; }
   main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 120px; }
   h1 { font-size: 26px; margin: 2px 0 4px; }
   small, .notice { color: #64748b; font-size: 14px; }
+  .panel.p-scan { background: #e9ecf1; border: 1px solid #d9dee6; }
+  .panel.p-cmd { background: #eef8f1; border: 1px solid #d3ecdc; }
+  .panel.p-fav { background: #fff7e6; border: 1px solid #f6e3b8; }
+  .p-cmd .row, .p-fav .row { border-bottom-color: #00000012; }
   .panel { background: #fff; border-radius: 16px; padding: 14px; margin: 12px 0; box-shadow: 0 1px 6px #12233a1a; }
   button { border: 0; border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px; background: #1564d4; color: #fff; }
   button:disabled { opacity: .5; }
@@ -66,7 +70,7 @@
   <small>ETABLISSEMENT FELIX</small>
   <h1>Réassort 🚚</h1>
 
-  <div class="panel">
+  <div class="panel p-scan">
     <div class="two">
       <button id="btnCam" onclick="toggleCam()">📷 Scan</button>
       <button class="secondary" onclick="$('photo').click()">🖼️ Import photo</button>
@@ -90,7 +94,7 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel p-cmd">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b style="font-size:18px">À commander</b>
       <small id="count"></small>
@@ -98,7 +102,7 @@
     <div id="liste"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel p-fav">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b style="font-size:18px">⭐ Favoris</b>
       <small>appuie sur + pour ajouter à la commande</small>
@@ -108,7 +112,7 @@
 
   <div class="two">
     <button class="secondary" onclick="copier()">📋 Copier la liste</button>
-    <button class="green" onclick="commandePassee()">✅ Commande passée</button>
+    <button class="green" onclick="commandePassee()">🔄 Remise à zéro</button>
   </div>
   <textarea id="copie" class="hidden" readonly></textarea>
 </main>
@@ -483,7 +487,7 @@
 
   function commandePassee() {
     if (!listeAffichee().length) { info('La liste est vide.', true); return; }
-    if (!confirm('La commande est passée ? La liste sera vidée et archivée dans « Historique commandes ».')) return;
+    if (!confirm('Remise à zéro ? La liste sera vidée et archivée dans « Historique commandes ».')) return;
     clearTimeout(minuterie);
     etatSync();
     envoyer(() => {
@@ -494,7 +498,7 @@
         dernierCode = '';
         $('copie').classList.add('hidden');
         afficher();
-        info('✅ Commande archivée');
+        info('🔄 Liste remise à zéro (archivée dans l\'historique)');
       }).catch(e => { envoiEnCours = false; info(e.message || String(e), true); etatSync(); });
     });
   }
