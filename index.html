@@ -45,6 +45,15 @@
   #masse textarea { height: 140px; font-size: 18px; font-family: ui-monospace, monospace; }
   .q { min-width: 38px; text-align: center; font-weight: 800; font-size: 20px; }
   .row.hl { background: #fffbe6; }
+  .row.inconnu { background: #f3e8ff; }
+  .row.inconnu .nom { color: #7e22ce; }
+  #pave { position: fixed; inset: 0; background: #0008; display: flex; align-items: flex-end; justify-content: center; z-index: 11; }
+  #pave .panel { width: 100%; max-width: 600px; margin: 0; border-radius: 16px 16px 0 0; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #paveAff { font-size: 28px; font-weight: 800; letter-spacing: 2px; min-height: 48px; padding: 8px 12px; border: 2px solid #cad5e3; border-radius: 12px; margin: 8px 0; font-family: ui-monospace, monospace; }
+  .touches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .touches button { padding: 16px 0; font-size: 24px; background: #e8effa; color: #1b2938; }
+  .lettres { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 6px; }
+  .lettres button { padding: 10px 0; font-size: 16px; background: #f1f5f9; color: #1b2938; }
   #sync { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
   .ok { color: #078447; } .wait { color: #b45309; } .err { color: #b42318; }
   #modal, #login { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
@@ -69,7 +78,8 @@
     <input id="barcode" type="text" placeholder="Scannette ou saisie du code" autocomplete="off" autocapitalize="off" spellcheck="false"
       onkeydown="if(event.key==='Enter'){event.preventDefault();saisie();}">
     <div id="last" class="hidden"></div>
-    <button class="secondary full" style="margin-top:10px" onclick="toggleMasse()">📥 Import en masse (scannette)</button>
+    <button class="secondary full" style="margin-top:10px" onclick="ouvrirPave()">⌨️ Saisie manuelle</button>
+    <button class="secondary full" style="margin-top:8px" onclick="toggleMasse()">📥 Import en masse (scannette)</button>
     <div id="masse" class="hidden">
       <p class="notice">Clique dans la case, puis appuie sur « envoyer » sur la scanette : tous les codes de la journée se tapent d'un coup, un par ligne. Ensuite, « Importer tout ».</p>
       <textarea id="masseTxt" placeholder="Un code par ligne" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
@@ -116,6 +126,20 @@
   </div>
 </div>
 
+<div id="pave" class="hidden" onclick="if(event.target===this)fermerPave()">
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b>Saisie manuelle</b>
+      <button class="secondary" style="padding:8px 14px" onclick="fermerPave()">Fermer</button>
+    </div>
+    <div id="paveAff"></div>
+    <div class="touches" id="chiffres"></div>
+    <button class="secondary full" style="margin-top:6px;padding:10px" onclick="$('lettres').classList.toggle('hidden')">ABC lettres</button>
+    <div class="lettres hidden" id="lettres"></div>
+    <button class="green full" style="margin-top:8px" onclick="validerPave()">Ajouter à la commande</button>
+  </div>
+</div>
+
 <div id="modal" class="hidden">
   <div class="panel">
     <b>Code inconnu : <span id="mCode"></span></b>
@@ -133,6 +157,7 @@
   const $ = id => document.getElementById(id);
   const API = 'https://script.google.com/macros/s/AKfycbyWsIu313KpQWmQyhYi5U5PwHT_DkFwlSmeFQF5YrK7Xr3FqttKmF_o4pWxyJULxSzK/exec';
   const CLE = 'reassort_file_v2';
+  const INCONNU = 'À RENOMMER';
   const CLE_ACCES = 'reassort_cle';
   let cle = '';
   try { cle = localStorage.getItem(CLE_ACCES) || ''; } catch (e) {}
@@ -194,7 +219,13 @@
     const code = String(codeBrut || '').trim();
     if (!code) return;
     if (!/^[0-9A-Za-z._\-\/]{1,64}$/.test(code)) { info('Code illisible : ' + code, true); bip(false); return; }
-    if (!(code in cat)) { ouvrirModal(code); bip(false); return; }
+    if (!(code in cat)) {
+      cat[code] = INCONNU;
+      mouvement(code, 1, INCONNU);
+      bip(true);
+      info('⚠️ Code ' + code + ' inconnu : ajouté, à renommer le soir dans le Sheet (onglet « À renommer »)');
+      return;
+    }
     mouvement(code, 1);
     compter(code);
     bip(true);
@@ -245,7 +276,6 @@
       compter(code);
       info('✓ ' + nom + ' ajouté au catalogue (+1)');
     }
-    setTimeout(suiteInconnus, 100);
   }
 
   // ---------- Import en masse ----------
@@ -271,7 +301,7 @@
     inconnus = [];
     codes.forEach(code => {
       if (!/^[0-9A-Za-z._\-\/]{1,64}$/.test(code)) { mauvais++; return; }
-      if (!(code in cat)) { inconnus.push(code); return; }
+      if (!(code in cat)) { cat[code] = INCONNU; file.push({ code: code, delta: 1, name: INCONNU }); inconnus.push(code); dernierCode = code; return; }
       file.push({ code: code, delta: 1 });
       compter(code, true);
       dernierCode = code;
@@ -283,17 +313,25 @@
     planifierEnvoi(300);
     $('masseTxt').value = '';
     majMasse();
-    bip(ok > 0);
+    bip(ok + inconnus.length > 0);
     let t = '✓ ' + ok + ' code(s) importé(s)';
-    if (inconnus.length) t += ' · ' + inconnus.length + ' inconnu(s) à nommer';
+    if (inconnus.length) t += ' · ' + inconnus.length + ' inconnu(s) ajouté(s), à renommer dans le Sheet';
     if (mauvais) t += ' · ' + mauvais + ' illisible(s)';
-    info(t, ok === 0);
-    suiteInconnus();
+    info(t, ok + inconnus.length === 0);
   }
-  function suiteInconnus() {
-    if (modalOuvert || !inconnus.length) return;
-    ouvrirModal(inconnus.shift());
-  }
+  // ---------- Pavé de saisie manuelle (le clavier iPhone est caché quand la scanette est connectée) ----------
+  let paveTxt = '', paveOuvert = false;
+  function majPave() { $('paveAff').textContent = paveTxt || ' '; }
+  function touche(c) { paveTxt += c; majPave(); }
+  function ouvrirPave() { initAudio(); paveTxt = ''; majPave(); paveOuvert = true; $('pave').classList.remove('hidden'); }
+  function fermerPave() { paveOuvert = false; $('pave').classList.add('hidden'); }
+  function validerPave() { const c = paveTxt; fermerPave(); if (c) ajouter(c); }
+  (function () {
+    const ch = ['1','2','3','4','5','6','7','8','9','⌫','0','.'];
+    $('chiffres').innerHTML = ch.map(c => '<button onclick="' + (c === '⌫' ? "paveTxt=paveTxt.slice(0,-1);majPave()" : "touche('" + c + "')") + '">' + c + '</button>').join('');
+    $('lettres').innerHTML = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ-/'.split('').map(c => '<button onclick="touche(\'' + c + '\')">' + c + '</button>').join('');
+  })();
+
   // ---------- Favoris ----------
   let freq = {}, epingles = [];
   try { freq = JSON.parse(localStorage.getItem('reassort_freq') || '{}'); } catch (e) {}
@@ -324,7 +362,7 @@
   }
   function listeFavs() {
     const auto = Object.keys(freq).filter(c => !epingles.includes(c)).sort((a, b) => freq[b] - freq[a]);
-    return epingles.concat(auto).filter(c => c in cat).slice(0, 20);
+    return epingles.concat(auto).filter(c => c in cat && cat[c] !== INCONNU).slice(0, 20);
   }
   function afficherFavs() {
     const l = listeFavs();
@@ -362,7 +400,7 @@
     const total = l.reduce((s, x) => s + x.qty, 0);
     $('count').textContent = l.length + ' réf. · ' + total + ' pièces';
     $('liste').innerHTML = l.length ? l.map(x =>
-      '<div class="row' + (x.code === dernierCode ? ' hl' : '') + '">' +
+      '<div class="row' + (x.code === dernierCode ? ' hl' : '') + (x.name === INCONNU ? ' inconnu' : '') + '">' +
         '<div class="txt"><div class="nom">' + esc(x.name) + '</div><div class="code">' + esc(x.code) + '</div></div>' +
         btnEtoile(x.code) +
         '<button class="pm moins" onclick="mouvement(\'' + esc(x.code) + '\',-1)">−</button>' +
@@ -530,7 +568,7 @@
   let tampon = '', tamponT = 0;
   document.addEventListener('keydown', e => {
     const t = e.target;
-    if (modalOuvert || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'))) return;
+    if (modalOuvert || paveOuvert || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'))) return;
     const now = Date.now();
     if (now - tamponT > 1000) tampon = '';
     tamponT = now;
