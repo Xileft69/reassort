@@ -21,6 +21,16 @@
   .panel.p-cmd { background: #eef8f1; border: 1px solid #d3ecdc; }
   .panel.p-fav { background: #fff7e6; border: 1px solid #f6e3b8; }
   .p-cmd .row, .p-fav .row { border-bottom-color: #00000012; }
+  .panel.p-histo { background: #eef3f9; border: 1px solid #d8e2ee; }
+  .cmd { background: #fff; border-radius: 10px; margin: 8px 0; border: 1px solid #e1e8f0; }
+  .cmd summary { padding: 11px 12px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .cmd summary::-webkit-details-marker { display: none; }
+  .cmd summary b { font-size: 15px; }
+  .cmd .ref { font-size: 13px; color: #1754a7; }
+  .cmd .det { padding: 0 12px 8px; }
+  .cmd .det .l { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid #eef1f5; font-size: 14px; }
+  .cmd .det .l span:first-child { flex: 1; }
+  .cmd .det .l small { display: block; }
   .panel { background: #fff; border-radius: 16px; padding: 14px; margin: 12px 0; box-shadow: 0 1px 6px #12233a1a; }
   button { border: 0; border-radius: 12px; padding: 14px; font-weight: 700; font-size: 16px; background: #1564d4; color: #fff; }
   button:disabled { opacity: .5; }
@@ -117,6 +127,14 @@
     <button class="green" onclick="commandePassee()">🔄 Remise à zéro</button>
   </div>
   <textarea id="copie" class="hidden" readonly></textarea>
+
+  <div class="panel p-histo">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:18px">📜 Historique des commandes</b>
+      <small id="hCount"></small>
+    </div>
+    <div id="histo"><p class="notice">Chargement…</p></div>
+  </div>
 </main>
 
 <div id="sync" class="ok">Chargement…</div>
@@ -472,6 +490,7 @@
       cat = r.catalogue;
       try { localStorage.setItem('reassort_cat', JSON.stringify(cat)); } catch (e) {}
       serveur = r.liste;
+      if (r.historique) { historique = r.historique; afficherHisto(); }
       afficher();
       if (file.length) planifierEnvoi(300);
     }).catch(e => {
@@ -479,6 +498,22 @@
       etatSync(true);
       setTimeout(rafraichir, 8000);
     });
+  }
+
+  // ---------- Historique ----------
+  let historique = [];
+  try { historique = JSON.parse(localStorage.getItem('reassort_histo') || '[]'); } catch (e) {}
+  function afficherHisto() {
+    try { localStorage.setItem('reassort_histo', JSON.stringify(historique)); } catch (e) {}
+    $('hCount').textContent = historique.length ? historique.length + ' commande(s)' : '';
+    $('histo').innerHTML = historique.length ? historique.map(c => {
+      const pieces = c.lignes.reduce((s, l) => s + l.qty, 0);
+      return '<details class="cmd"><summary><span><b>' + esc(c.date) + '</b>' +
+        (c.ref ? '<br><span class="ref">Réf. ' + esc(c.ref) + '</span>' : '') + '</span>' +
+        '<small>' + c.lignes.length + ' réf. · ' + pieces + ' pcs ▾</small></summary><div class="det">' +
+        c.lignes.map(l => '<div class="l"><span>' + esc(l.name) + '<small>' + esc(l.code) + '</small></span><b>× ' + l.qty + '</b></div>').join('') +
+        '</div></details>';
+    }).join('') : '<p class="notice">Aucune commande archivée pour le moment.</p>';
   }
 
   // ---------- Commande ----------
@@ -503,14 +538,17 @@
 
   function commandePassee() {
     if (!listeACommander().length) { info('La liste est vide.', true); return; }
-    if (!confirm('Remise à zéro ? La liste sera vidée et archivée dans « Historique commandes ».')) return;
+    if (!confirm('Remise à zéro ? La liste sera vidée et archivée dans l\'historique des commandes.')) return;
+    let ref = prompt('Référence de la commande (facultatif, ex. n° de bon Richardson) :', '');
+    ref = (ref || '').trim();
     clearTimeout(minuterie);
     etatSync();
     envoyer(() => {
       envoiEnCours = true;
-      api('commander').then(r => {
+      api('commander', { ref: ref }).then(r => {
         envoiEnCours = false;
         serveur = r.liste;
+        if (r.historique) { historique = r.historique; afficherHisto(); }
         dernierCode = '';
         ordreCmd = [];
         $('copie').classList.add('hidden');
@@ -585,6 +623,7 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) envoyer(); });
 
   $('masseTxt').addEventListener('input', majMasse);
+  afficherHisto();
   // Scannette sans case sélectionnée : l'appli écoute les touches directement
   let tampon = '', tamponT = 0;
   document.addEventListener('keydown', e => {
