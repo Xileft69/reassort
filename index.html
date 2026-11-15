@@ -13,7 +13,8 @@
   :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b2938; background: #f8f9fb; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; }
-  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 120px; }
+  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 190px; }
+  .row.zero { opacity: .45; }
   h1 { font-size: 26px; margin: 2px 0 4px; }
   small, .notice { color: #64748b; font-size: 14px; }
   .panel.p-scan { background: #fff; border: 1px solid #e2e6ec; }
@@ -32,7 +33,8 @@
   #reader { width: 100%; border-radius: 12px; overflow: hidden; margin-top: 10px; }
   #reader video { border-radius: 12px; }
   .hidden { display: none !important; }
-  #last { font-size: 15px; padding: 10px 12px; border-radius: 10px; margin-top: 10px; background: #eef7f1; color: #065f36; }
+  #last { position: fixed; left: 10px; right: 10px; bottom: calc(48px + env(safe-area-inset-bottom)); z-index: 5; max-width: 580px; margin: auto;
+    font-size: 15px; padding: 10px 12px; border-radius: 10px; background: #eef7f1; color: #065f36; box-shadow: 0 2px 10px #12233a33; pointer-events: none; }
   #last.err { background: #fdecea; color: #b42318; }
   #last.flash { animation: flash .35s; }
   @keyframes flash { from { background: #b7f0cd; } }
@@ -237,6 +239,7 @@
   }
 
   function mouvement(code, delta, name) {
+    if (delta < 0 && qteDe(code) <= 0) return;
     const m = { code: code, delta: delta };
     if (name) m.name = name;
     file.push(m);
@@ -251,6 +254,8 @@
     el.textContent = t;
     el.className = err ? 'err' : '';
     void el.offsetWidth; el.classList.add('flash');
+    clearTimeout(info.t);
+    info.t = setTimeout(() => el.classList.add('hidden'), 4000);
   }
 
   function saisie() {
@@ -368,8 +373,12 @@
     const auto = Object.keys(freq).filter(c => !epingles.includes(c)).sort((a, b) => freq[b] - freq[a]);
     return epingles.concat(auto).filter(c => c in cat && cat[c] !== INCONNU).slice(0, 20);
   }
+  let ordreFav = null;
   function afficherFavs() {
-    const l = listeFavs();
+    const f = listeFavs();
+    if (!ordreFav) ordreFav = f.slice();
+    else f.forEach(c => { if (!ordreFav.includes(c) && ordreFav.length < 20) ordreFav.push(c); });
+    const l = ordreFav.filter(c => c in cat);
     $('favs').innerHTML = l.length ? l.map(c =>
       '<div class="row">' +
         '<div class="txt"><div class="nom">' + esc(cat[c]) + '</div><div class="code">' + esc(c) + (freq[c] ? ' · ' + freq[c] + ' fois' : '') + '</div></div>' +
@@ -381,6 +390,7 @@
   }
 
   // ---------- Liste ----------
+  let ordreCmd = [];
   function listeAffichee() {
     const m = {};
     serveur.forEach(x => m[x.code] = { code: x.code, name: x.name, qty: x.qty });
@@ -388,8 +398,13 @@
       if (!m[f.code]) m[f.code] = { code: f.code, name: cat[f.code] || f.name || 'Article sans nom', qty: 0 };
       m[f.code].qty += f.delta;
     });
-    return Object.values(m).filter(x => x.qty > 0).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+    // Ordre figé pendant la session : les nouvelles réf. s'ajoutent en bas, une ligne à 0 reste en place (grisée)
+    if (!ordreCmd.length) ordreCmd = Object.values(m).filter(x => x.qty > 0).sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(x => x.code);
+    Object.values(m).forEach(x => { if (x.qty > 0 && !ordreCmd.includes(x.code)) ordreCmd.push(x.code); });
+    return ordreCmd.map(c => m[c] || { code: c, name: cat[c] || 'Article sans nom', qty: 0 })
+      .map(x => (x.qty < 0 ? Object.assign(x, { qty: 0 }) : x));
   }
+  function listeACommander() { return listeAffichee().filter(x => x.qty > 0); }
   function qteDe(code) {
     const x = listeAffichee().find(i => i.code === code);
     return x ? x.qty : 0;
@@ -401,10 +416,11 @@
 
   function afficher() {
     const l = listeAffichee();
-    const total = l.reduce((s, x) => s + x.qty, 0);
-    $('count').textContent = l.length + ' réf. · ' + total + ' pièces';
+    const lp = l.filter(x => x.qty > 0);
+    const total = lp.reduce((s, x) => s + x.qty, 0);
+    $('count').textContent = lp.length + ' réf. · ' + total + ' pièces';
     $('liste').innerHTML = l.length ? l.map(x =>
-      '<div class="row' + (x.code === dernierCode ? ' hl' : '') + (x.name === INCONNU ? ' inconnu' : '') + '">' +
+      '<div class="row' + (x.code === dernierCode ? ' hl' : '') + (x.name === INCONNU ? ' inconnu' : '') + (x.qty > 0 ? '' : ' zero') + '">' +
         '<div class="txt"><div class="nom">' + esc(x.name) + '</div><div class="code">' + esc(x.code) + '</div></div>' +
         btnEtoile(x.code) +
         '<button class="pm moins" onclick="mouvement(\'' + esc(x.code) + '\',-1)">−</button>' +
@@ -467,14 +483,14 @@
 
   // ---------- Commande ----------
   function texteCommande() {
-    const l = listeAffichee();
+    const l = listeACommander();
     const d = new Date().toLocaleDateString('fr-FR');
     return 'Commande Établissement Félix — ' + d + '\n\n' +
       l.map(x => x.code + ' — ' + x.name + ' — Qté ' + x.qty).join('\n');
   }
 
   async function copier() {
-    if (!listeAffichee().length) { info('La liste est vide.', true); return; }
+    if (!listeACommander().length) { info('La liste est vide.', true); return; }
     const t = texteCommande();
     const ta = $('copie');
     ta.value = t;
@@ -486,7 +502,7 @@
   }
 
   function commandePassee() {
-    if (!listeAffichee().length) { info('La liste est vide.', true); return; }
+    if (!listeACommander().length) { info('La liste est vide.', true); return; }
     if (!confirm('Remise à zéro ? La liste sera vidée et archivée dans « Historique commandes ».')) return;
     clearTimeout(minuterie);
     etatSync();
@@ -496,6 +512,7 @@
         envoiEnCours = false;
         serveur = r.liste;
         dernierCode = '';
+        ordreCmd = [];
         $('copie').classList.add('hidden');
         afficher();
         info('🔄 Liste remise à zéro (archivée dans l\'historique)');
