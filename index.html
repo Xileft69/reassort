@@ -109,12 +109,25 @@
   #paveAff { font-size: 28px; font-weight: 800; letter-spacing: 2px; min-height: 48px; padding: 8px 12px; border: 2px solid #cad5e3; border-radius: 12px; margin: 8px 0; font-family: ui-monospace, monospace; }
   .touches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .touches button { padding: 16px 0; font-size: 24px; background: #e8effa; color: #1b2938; }
-  .lettres { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 6px; }
-  .lettres button { padding: 10px 0; font-size: 16px; background: #f1f5f9; color: #1b2938; }
+  .lettres { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-top: 6px; }
+  .lettres .large { grid-column: span 3; }
+  .petits button { font-size: 14px; white-space: nowrap; padding: 14px 4px; }
+  .saisieLigne { display: flex; gap: 8px; align-items: center; }
+  .saisieLigne input { flex: 1; min-width: 0; }
+  .saisieLigne button { padding: 15px 18px; }
+  #pave .panel { max-height: 94vh; overflow-y: auto; }
+  .sugg { margin: 2px 0 6px; }
+  .sugg button { display: flex; width: 100%; text-align: left; gap: 8px; align-items: center; padding: 10px 12px; margin: 5px 0; background: #f3f6fb; color: #1b2938; border: 1px solid #e2e8f0; font-size: 15px; font-weight: 600; }
+  .sugg button span { flex: 1; min-width: 0; }
+  .sugg button small { display: block; font-size: 12px; font-weight: 400; color: #7a8699; }
+  .sugg button b { color: #078447; font-size: 20px; }
+  .sugg button.neuf { background: #f4ecff; border-color: #e0ccff; color: #5b21b6; }
+  .lettres button { padding: 11px 0; font-size: 16px; background: #f1f5f9; color: #1b2938; }
   #sync { z-index: 6; position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
   .ok { color: #078447; } .wait { color: #b45309; } .err { color: #b42318; }
   #modal, #login, #noteBox { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
   #noteBox { z-index: 12; }
+  .danger { background: #fdecea; color: #b42318; font-size: 14px; padding: 11px 6px; }
   #noteBox textarea { width: 100%; height: 110px; font-size: 17px; border: 2px solid #cad5e3; border-radius: 12px; padding: 10px; margin: 8px 0; font-family: inherit; }
   #modal .panel, #login .panel, #noteBox .panel { width: 100%; max-width: 420px; }
   textarea { width: 100%; height: 160px; font-size: 14px; border-radius: 10px; border: 1px solid #cad5e3; padding: 8px; }
@@ -130,15 +143,21 @@
       <button id="btnCam" onclick="toggleCam()">📷 Scan</button>
       <button class="secondary" onclick="$('photo').click()">🖼️ Import photo</button>
     </div>
+    <div class="two petits" style="margin-top:8px">
+      <button class="secondary" onclick="ouvrirPave()">⌨️ Saisie manuelle</button>
+      <button class="secondary" onclick="toggleMasse()">📥 Import en masse</button>
+    </div>
     <input id="photo" type="file" accept="image/*" capture="environment" class="hidden" onchange="scanPhoto(this)">
     <div id="reader" class="hidden"></div>
     <div id="fileReader" class="hidden"></div>
 
-    <input id="barcode" type="text" placeholder="Scannette ou saisie du code" autocomplete="off" autocapitalize="off" spellcheck="false"
-      onkeydown="if(event.key==='Enter'){event.preventDefault();saisie();}">
+    <div class="saisieLigne">
+      <input id="barcode" type="text" placeholder="Code ou nom d'article" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();saisie();}" oninput="suggerer($('barcode').value, 'sugg')">
+      <button class="green" onclick="saisie()">OK</button>
+    </div>
+    <div id="sugg" class="sugg"></div>
     <div id="last" class="hidden"></div>
-    <button class="secondary full" style="margin-top:10px" onclick="ouvrirPave()">⌨️ Saisie manuelle</button>
-    <button class="secondary full" style="margin-top:8px" onclick="toggleMasse()">📥 Import en masse (scannette)</button>
     <div id="masse" class="hidden">
       <p class="notice">Clique dans la case, puis appuie sur « envoyer » sur la scanette : tous les codes de la journée se tapent d'un coup, un par ligne. Ensuite, « Importer tout ».</p>
       <textarea id="masseTxt" placeholder="Un code par ligne" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
@@ -233,8 +252,9 @@
     </div>
     <div id="paveAff"></div>
     <div class="touches" id="chiffres"></div>
-    <button class="secondary full" style="margin-top:6px;padding:10px" onclick="$('lettres').classList.toggle('hidden')">ABC lettres</button>
+    <button class="secondary full" style="margin-top:6px;padding:10px" onclick="$('lettres').classList.toggle('hidden')">AZERTY lettres</button>
     <div class="lettres hidden" id="lettres"></div>
+    <div id="paveSugg" class="sugg"></div>
     <button class="green full" style="margin-top:8px" onclick="validerPave()">Ajouter à la commande</button>
   </div>
 </div>
@@ -247,6 +267,10 @@
     <div class="two">
       <button class="secondary" onclick="fermerNote()">Annuler</button>
       <button onclick="enregistrerNote()">Enregistrer</button>
+    </div>
+    <div class="two" style="margin-top:8px">
+      <button id="btnSupNote" class="danger" onclick="supprimerNote()">🗑 Effacer la note</button>
+      <button id="btnSupPhoto" class="danger" onclick="supprimerPhoto()">🗑 Supprimer la photo</button>
     </div>
   </div>
 </div>
@@ -371,9 +395,92 @@
 
   function saisie() {
     initAudio();
-    const v = $('barcode').value;
-    $('barcode').value = '';
+    const v = $('barcode').value.trim();
+    if (!v) return;
+    // Texte tapé à la main (minuscules, espaces, accents) : on ne l'ajoute pas tel quel, on laisse choisir dans la liste
+    if (!(v in cat) && /[a-zà-ÿ\s]/.test(v)) {
+      const l = trouverArticles(v);
+      if (!l.length) { ajouterTexte('sugg'); return; }                       // rien de connu : nouvel article
+      if (l.length === 1 || norm(l[0].nom) === norm(v)) { choisirSugg(l[0].code, 'sugg'); return; }
+      suggerer(v, 'sugg'); info('Plusieurs articles possibles : choisis dans la liste'); return;
+    }
+    $('barcode').value = ''; $('sugg').innerHTML = '';
     ajouter(v);
+  }
+
+  // ---------- Recherche par nom (barre de saisie + pavé) ----------
+  const VIDES = ['de', 'du', 'des', 'la', 'le', 'les', 'et', 'en', 'a', 'pour', 'avec'];
+  const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const mots = t => norm(t).split(/[^a-z0-9\/.,]+/).filter(m => m && !VIDES.includes(m));
+  function ecart(a, b) {                      // nombre de fautes de frappe entre deux mots
+    const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = d[0]; d[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const t = d[j];
+        d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = t;
+      }
+    }
+    return d[b.length];
+  }
+  function trouverArticles(texte) {
+    const q = mots(texte);
+    if (!q.length) return [];
+    const out = [];
+    Object.keys(cat).forEach(code => {
+      const nom = cat[code];
+      if (!nom || nom === INCONNU) return;
+      const toks = mots(nom + ' ' + code);
+      let score = 0;
+      for (const m of q) {
+        let best = 0;
+        for (const t of toks) {
+          if (t.startsWith(m)) best = Math.max(best, 3);
+          else if (m.length >= 3 && t.includes(m)) best = Math.max(best, 2);
+          else if (m.length >= 4 && ecart(m, t.slice(0, m.length)) <= 1) best = Math.max(best, 1);
+          else if (m.length >= 6 && ecart(m, t.slice(0, m.length)) <= 2) best = Math.max(best, 1);
+        }
+        if (!best) return;
+        score += best;
+      }
+      out.push({ code, nom, score: score + Math.min(2, (freq[code] || 0) / 5) });
+    });
+    return out.sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom, 'fr')).slice(0, 8);
+  }
+  function suggerer(texte, cible) {
+    const v = String(texte || '').trim();
+    const el = $(cible);
+    if (v.length < 2 || (v in cat)) { el.innerHTML = ''; return; }
+    const l = trouverArticles(v);
+    const libre = /[a-zA-Zà-ÿ]/.test(v) && /[a-zà-ÿ\s]/i.test(v);
+    el.innerHTML = l.map(x =>
+      '<button onclick="choisirSugg(\'' + esc(x.code).replace(/'/g, '') + '\',\'' + cible + '\')"><span>' + esc(x.nom) + '<small>' + esc(x.code) + '</small></span><b>+</b></button>').join('') +
+      (libre ? '<button class="neuf" onclick="ajouterTexte(\'' + cible + '\')"><span>➕ Ajouter « ' + esc(v) + ' »<small>nouvel article, en violet dans le tableau (à compléter le soir)</small></span></button>' : '');
+  }
+  function viderSaisie(cible) {
+    if (cible === 'paveSugg') { paveTxt = ''; majPave(); } else $('barcode').value = '';
+    $(cible).innerHTML = '';
+  }
+  function choisirSugg(code, cible) {
+    initAudio();
+    viderSaisie(cible);
+    if (cible === 'paveSugg') fermerPave();
+    ajouter(code);
+  }
+  function ajouterTexte(cible) {
+    initAudio();
+    const brut = (cible === 'paveSugg' ? paveTxt : $('barcode').value).trim();
+    if (!brut) return;
+    const nom = brut.charAt(0).toUpperCase() + brut.slice(1);
+    const code = ('M-' + norm(brut).toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '')).slice(0, 40);
+    viderSaisie(cible);
+    if (cible === 'paveSugg') fermerPave();
+    if (code in cat) { ajouter(code); return; }
+    cat[code] = nom;
+    mouvement(code, 1, nom);
+    bip(true);
+    info('➕ ' + nom + ' ajouté (+1), en violet dans le tableau');
   }
 
   // ---------- Code inconnu ----------
@@ -441,15 +548,21 @@
   }
   // ---------- Pavé de saisie manuelle (le clavier iPhone est caché quand la scanette est connectée) ----------
   let paveTxt = '', paveOuvert = false;
-  function majPave() { $('paveAff').textContent = paveTxt || ' '; }
+  function majPave() { $('paveAff').textContent = paveTxt || ' '; suggerer(paveTxt, 'paveSugg'); }
   function touche(c) { paveTxt += c; majPave(); }
   function ouvrirPave() { initAudio(); paveTxt = ''; majPave(); paveOuvert = true; $('pave').classList.remove('hidden'); }
   function fermerPave() { paveOuvert = false; $('pave').classList.add('hidden'); }
-  function validerPave() { const c = paveTxt; fermerPave(); if (c) ajouter(c); }
+  function validerPave() {
+    const c = paveTxt.trim();
+    if (!c) { fermerPave(); return; }
+    if (!(c in cat) && /\s/.test(c)) { ajouterTexte('paveSugg'); return; }
+    fermerPave(); $('paveSugg').innerHTML = ''; ajouter(c);
+  }
   (function () {
     const ch = ['1','2','3','4','5','6','7','8','9','⌫','0','.'];
     $('chiffres').innerHTML = ch.map(c => '<button onclick="' + (c === '⌫' ? "paveTxt=paveTxt.slice(0,-1);majPave()" : "touche('" + c + "')") + '">' + c + '</button>').join('');
-    $('lettres').innerHTML = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ-/'.split('').map(c => '<button onclick="touche(\'' + c + '\')">' + c + '</button>').join('');
+    $('lettres').innerHTML = 'AZERTYUIOPQSDFGHJKLMWXCVBN-/'.split('').map(c => '<button onclick="touche(\'' + c + '\')">' + c + '</button>').join('') +
+      '<button class="large" onclick="touche(\' \')">espace</button>';
   })();
 
   // ---------- Favoris ----------
@@ -676,7 +789,8 @@
     if (!b.note && !b.mini) return '';
     return '<div class="noteBon">' +
       (b.mini ? '<a href="' + esc(b.photo) + '" target="_blank"><img src="' + esc(b.mini) + '" alt="photo"></a>' : '') +
-      '<span onclick="ouvrirNote(\'' + k + '\')">' + (b.note ? '📝 ' + esc(b.note) : '<i>Ajouter une note…</i>') + '</span></div>';
+      '<span onclick="ouvrirNote(\'' + k + '\')">' + (b.note ? '📝 ' + esc(b.note) : '<i>Ajouter une note…</i>') + '</span>' +
+      '<button class="secondary" style="padding:6px 9px" onclick="ouvrirNote(\'' + k + '\')">✏️</button></div>';
   }
 
   // ---------- Note ----------
@@ -686,6 +800,8 @@
     noteCle = k;
     $('noteTitre').textContent = 'Note — ' + (b.intervention || b.fournisseur);
     $('noteTxt').value = b.note || '';
+    $('btnSupNote').classList.toggle('hidden', !b.note);
+    $('btnSupPhoto').classList.toggle('hidden', !b.mini && !b.photo);
     $('noteBox').classList.remove('hidden');
     setTimeout(() => $('noteTxt').focus(), 50);
   }
@@ -698,6 +814,17 @@
     b.note = note; afficherBons();
     api('pointer', { cle: b.cle, note: note }).then(() => { info('📝 Note enregistrée'); sauverBons(); })
       .catch(e => { b.note = avant; afficherBons(); info('Note non enregistrée, réessaie.', true); });
+  }
+
+  function supprimerNote() { $('noteTxt').value = ''; enregistrerNote(); }
+  function supprimerPhoto() {
+    const b = trouverBon(noteCle); if (!b) return;
+    if (!confirm('Supprimer la photo de cette commande ?')) return;
+    fermerNote();
+    const avant = { photo: b.photo, mini: b.mini };
+    b.photo = ''; b.mini = ''; afficherBons();
+    api('pointer', { cle: b.cle, supprimerPhoto: true }).then(() => { info('🗑 Photo supprimée'); sauverBons(); })
+      .catch(e => { b.photo = avant.photo; b.mini = avant.mini; afficherBons(); info('Photo non supprimée : ' + (e.message || e), true); });
   }
 
   // ---------- Photo ----------
