@@ -53,6 +53,14 @@
   .bon .st button.on.s0 { background: #d92d20; color: #fff; border-color: #d92d20; }
   .bon .st button.on.s1 { background: #f79009; color: #fff; border-color: #f79009; }
   .bon .st button.on.s2 { background: #12b76a; color: #fff; border-color: #12b76a; }
+  .bon details { margin: 6px 0 8px; border-top: 1px solid #eef1f5; }
+  .bon summary { padding: 8px 0 4px; font-size: 14px; font-weight: 700; color: #1754a7; cursor: pointer; list-style: none; }
+  .bon summary::-webkit-details-marker { display: none; }
+  .bon .titreArt { font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; margin: 8px 0 2px; }
+  .bon .art { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f1f4f8; font-size: 14px; }
+  .bon .art span { flex: 1; min-width: 0; }
+  .bon .art small { display: block; font-size: 12px; color: #7a8699; }
+  .bon .art b { white-space: nowrap; }
   .filtres { display: flex; gap: 6px; margin: 8px 0; }
   .filtres button { flex: 1; padding: 9px 4px; font-size: 13px; background: #f3f5f8; color: #475467; border: 1px solid #e2e6ec; }
   .filtres button.on { background: #1564d4; color: #fff; border-color: #1564d4; }
@@ -181,7 +189,7 @@
       <b style="font-size:18px">📦 Commandes reçues</b>
       <small id="bCount"></small>
     </div>
-    <input id="bCherche" type="text" placeholder="Chercher : chantier, fournisseur, n°…" autocomplete="off" oninput="afficherBons()">
+    <input id="bCherche" type="text" placeholder="Chercher : chantier, article, n°…" autocomplete="off" oninput="afficherBons()">
     <div class="filtres">
       <button id="fAttente" class="on" onclick="filtreBons('attente')">À pointer</button>
       <button id="fTout" onclick="filtreBons('tout')">Tout</button>
@@ -597,7 +605,7 @@
     const aPointer = bons.filter(b => b.statut !== 'Totalement reçu').length;
     $('bCount').textContent = aPointer + ' à pointer';
     let l = bons.filter(b => filtreB === 'tout' || q || b.statut !== 'Totalement reçu');
-    if (q) l = l.filter(b => [b.fournisseur, b.intervention, b.numCde, b.numBL, b.dateAR, b.dateBL].join(' ').toLowerCase().includes(q));
+    if (q) l = l.filter(b => [b.fournisseur, b.intervention, b.numCde, b.numBL, b.dateAR, b.dateBL].concat((b.articlesBL || []).concat(b.articlesAR || []).map(a => a.nom + ' ' + a.ref)).join(' ').toLowerCase().includes(q));
     l = l.slice(0, 150);
     $('bons').innerHTML = l.length ? l.map(b => {
       const i = Math.max(0, STATUTS.indexOf(b.statut));
@@ -608,9 +616,24 @@
         (b.dateAR ? 'AR ' + esc(b.dateAR) : 'pas d\'AR') + ' · ' + (b.dateBL ? 'BL ' + esc(b.dateBL) : 'BL pas encore reçu') + '</div>' +
         '<div class="docs">' + (b.ar ? '<a href="' + esc(b.ar) + '" target="_blank">📄 AR</a>' : '') +
         (b.bl ? '<a href="' + esc(b.bl) + '" target="_blank">📄 BL ' + esc(b.numBL) + '</a>' : '<span>BL à venir</span>') + '</div>' +
+        detailBon(b) +
         '<div class="st">' + STATUTS.map((s, j) => '<button class="s' + j + (j === i ? ' on' : '') + '" onclick="pointer(\'' + k + '\',' + j + ')">' + COURT[j] + '</button>').join('') + '</div>' +
         '</div>';
     }).join('') : '<p class="notice">' + (q ? 'Rien trouvé.' : filtreB === 'attente' ? 'Tout est pointé ✅' : 'Aucune commande pour le moment.') + '</p>';
+  }
+  function listeArt(titre, l) {
+    return '<div class="titreArt">' + titre + '</div>' + (l.length ? l.map(a =>
+      '<div class="art"><span>' + esc(a.nom || '—') + '<small>' + esc(a.ref || '') + (a.date ? ' · ' + esc(a.date) : '') + '</small></span><b>× ' + esc(a.qte) + '</b></div>').join('')
+      : '<p class="notice">Résumé indisponible, ouvre le PDF.</p>');
+  }
+  function detailBon(b) {
+    const bl = b.articlesBL, ar = b.articlesAR;
+    if (!bl && !ar) return '';
+    const nb = (bl && bl.length ? bl : ar || []).length;
+    return '<details><summary>▾ Voir les articles' + (nb ? ' (' + nb + ')' : '') + '</summary>' +
+      (b.bl && bl ? listeArt('Livré (BL ' + esc(b.numBL) + (b.dateBL ? ' du ' + esc(b.dateBL) : '') + ')', bl) : '') +
+      (b.ar && ar ? listeArt('Commandé (AR' + (b.dateAR ? ' du ' + esc(b.dateAR) : '') + ')', ar) : '') +
+      '</details>';
   }
   function pointer(cle, j) {
     const b = bons.find(x => x.cle.replace(/'/g, '') === cle);
