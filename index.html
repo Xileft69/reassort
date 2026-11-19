@@ -360,6 +360,7 @@
     const code = String(codeBrut || '').trim();
     if (!code) return;
     if (!/^[0-9A-Za-z._\-\/]{1,64}$/.test(code)) { info('Code illisible : ' + code, true); bip(false); return; }
+    enTete = code;
     if (!(code in cat)) {
       cat[code] = INCONNU;
       mouvement(code, 1, INCONNU);
@@ -478,6 +479,7 @@
     if (cible === 'paveSugg') fermerPave();
     if (code in cat) { ajouter(code); return; }
     cat[code] = nom;
+    enTete = code;
     mouvement(code, 1, nom);
     bip(true);
     info('➕ ' + nom + ' ajouté (+1), en violet dans le tableau');
@@ -499,6 +501,7 @@
     lastSeen = { code: code, t: Date.now() };
     if (ok) {
       cat[code] = nom;
+      enTete = code;
       mouvement(code, 1, nom);
       compter(code);
       info('✓ ' + nom + ' ajouté au catalogue (+1)');
@@ -615,6 +618,7 @@
 
   // ---------- Liste ----------
   let ordreCmd = [];
+  let enTete = '';
   function listeAffichee() {
     const m = {};
     serveur.forEach(x => m[x.code] = { code: x.code, name: x.name, qty: x.qty });
@@ -622,9 +626,10 @@
       if (!m[f.code]) m[f.code] = { code: f.code, name: cat[f.code] || f.name || 'Article sans nom', qty: 0 };
       m[f.code].qty += f.delta;
     });
-    // Ordre figé pendant la session : les nouvelles réf. s'ajoutent en bas, une ligne à 0 disparaît
+    // Le dernier article ajouté (scan, saisie, recherche) passe tout en haut ; les +/− ne changent pas l'ordre
     if (!ordreCmd.length) ordreCmd = Object.values(m).filter(x => x.qty > 0).sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(x => x.code);
-    Object.values(m).forEach(x => { if (x.qty > 0 && !ordreCmd.includes(x.code)) ordreCmd.push(x.code); });
+    Object.values(m).forEach(x => { if (x.qty > 0 && !ordreCmd.includes(x.code)) ordreCmd.unshift(x.code); });
+    if (enTete) { ordreCmd = [enTete].concat(ordreCmd.filter(c => c !== enTete)); enTete = ''; }
     ordreCmd = ordreCmd.filter(c => m[c] && m[c].qty > 0);
     return ordreCmd.map(c => m[c]);
   }
@@ -750,13 +755,13 @@
       const i = Math.max(0, STATUTS.indexOf(b.statut));
       const k = esc(b.cle).replace(/'/g, '');
       return '<div class="bon st' + i + '"><div class="haut"><span class="inter">' + esc(b.intervention || 'SANS-REF') + '</span>' +
-        '<small>' + esc(b.fournisseur) + '</small></div>' +
+        '<span class="inter">' + esc(b.fournisseur) + '</span></div>' +
         '<div class="meta">' + (b.numCde ? 'Cde ' + esc(b.numCde) + ' · ' : '') +
         (b.dateAR ? 'AR ' + esc(b.dateAR) : 'pas d\'AR') + ' · ' + (b.dateBL ? 'BL ' + esc(b.dateBL) : 'BL pas encore reçu') + '</div>' +
         noteBon(b, k) +
-        '<div class="docs">' + (b.ar ? '<a href="' + esc(b.ar) + '" target="_blank">📄 AR</a>' : '') +
+        '<div class="docs">' + boutonArticles(b, k) +
+        (b.ar ? '<a href="' + esc(b.ar) + '" target="_blank">📄 AR</a>' : '') +
         (b.bl ? '<a href="' + esc(b.bl) + '" target="_blank">📄 BL ' + esc(b.numBL) + '</a>' : '<span>BL à venir</span>') +
-        boutonArticles(b, k) +
         '<button onclick="ouvrirNote(\'' + k + '\')">📝 Note</button>' +
         '<button onclick="choisirPhoto(\'' + k + '\')">📷 Photo</button>' + '</div>' +
         (ouverts.has(k) ? detailBon(b) : '') +
