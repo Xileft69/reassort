@@ -61,6 +61,12 @@
   .bon .art span { flex: 1; min-width: 0; }
   .bon .art small { display: block; font-size: 12px; color: #7a8699; }
   .bon .art b { white-space: nowrap; }
+  .bon .docs button { font-size: 14px; font-weight: 700; color: #1754a7; background: #e8effa; padding: 7px 10px; border-radius: 9px; }
+  .bon .docs button.on { background: #1564d4; color: #fff; }
+  .bon .noteBon { display: flex; gap: 10px; align-items: center; background: #fff7d6; border: 1px solid #f3e2a1; border-radius: 10px; padding: 8px 10px; margin: 6px 0; font-size: 15px; font-weight: 600; color: #5c4400; }
+  .bon .noteBon span { flex: 1; white-space: pre-wrap; }
+  .bon .noteBon img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; }
+  .bon .arts { border-top: 1px solid #eef1f5; margin-bottom: 8px; }
   .filtres { display: flex; gap: 6px; margin: 8px 0; }
   .filtres button { flex: 1; padding: 9px 4px; font-size: 13px; background: #f3f5f8; color: #475467; border: 1px solid #e2e6ec; }
   .filtres button.on { background: #1564d4; color: #fff; border-color: #1564d4; }
@@ -107,8 +113,10 @@
   .lettres button { padding: 10px 0; font-size: 16px; background: #f1f5f9; color: #1b2938; }
   #sync { z-index: 6; position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -2px 10px #12233a22; font-size: 14px; text-align: center; }
   .ok { color: #078447; } .wait { color: #b45309; } .err { color: #b42318; }
-  #modal, #login { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
-  #modal .panel, #login .panel { width: 100%; max-width: 420px; }
+  #modal, #login, #noteBox { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  #noteBox { z-index: 12; }
+  #noteBox textarea { width: 100%; height: 110px; font-size: 17px; border: 2px solid #cad5e3; border-radius: 12px; padding: 10px; margin: 8px 0; font-family: inherit; }
+  #modal .panel, #login .panel, #noteBox .panel { width: 100%; max-width: 420px; }
   textarea { width: 100%; height: 160px; font-size: 14px; border-radius: 10px; border: 1px solid #cad5e3; padding: 8px; }
 </style>
 </head>
@@ -230,6 +238,19 @@
     <button class="green full" style="margin-top:8px" onclick="validerPave()">Ajouter à la commande</button>
   </div>
 </div>
+
+<div id="noteBox" class="hidden" onclick="if(event.target===this)fermerNote()">
+  <div class="panel">
+    <b id="noteTitre">Note</b>
+    <p class="notice">Ex : rangé étagère du fond, manque 1 coude, à récupérer au comptoir…</p>
+    <textarea id="noteTxt"></textarea>
+    <div class="two">
+      <button class="secondary" onclick="fermerNote()">Annuler</button>
+      <button onclick="enregistrerNote()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+<input id="photoBon" type="file" accept="image/*" class="hidden" onchange="envoyerPhoto(this)">
 
 <div id="modal" class="hidden">
   <div class="panel">
@@ -605,7 +626,7 @@
     const aPointer = bons.filter(b => b.statut !== 'Totalement reçu').length;
     $('bCount').textContent = aPointer + ' à pointer';
     let l = bons.filter(b => filtreB === 'tout' || q || b.statut !== 'Totalement reçu');
-    if (q) l = l.filter(b => [b.fournisseur, b.intervention, b.numCde, b.numBL, b.dateAR, b.dateBL].concat((b.articlesBL || []).concat(b.articlesAR || []).map(a => a.nom + ' ' + a.ref)).join(' ').toLowerCase().includes(q));
+    if (q) l = l.filter(b => [b.fournisseur, b.intervention, b.numCde, b.numBL, b.dateAR, b.dateBL].concat((b.articlesBL || []).concat(b.articlesAR || []).map(a => a.nom + ' ' + a.ref)).concat([b.note || '']).join(' ').toLowerCase().includes(q));
     l = l.slice(0, 150);
     $('bons').innerHTML = l.length ? l.map(b => {
       const i = Math.max(0, STATUTS.indexOf(b.statut));
@@ -614,9 +635,13 @@
         '<small>' + esc(b.fournisseur) + '</small></div>' +
         '<div class="meta">' + (b.numCde ? 'Cde ' + esc(b.numCde) + ' · ' : '') +
         (b.dateAR ? 'AR ' + esc(b.dateAR) : 'pas d\'AR') + ' · ' + (b.dateBL ? 'BL ' + esc(b.dateBL) : 'BL pas encore reçu') + '</div>' +
+        noteBon(b, k) +
         '<div class="docs">' + (b.ar ? '<a href="' + esc(b.ar) + '" target="_blank">📄 AR</a>' : '') +
-        (b.bl ? '<a href="' + esc(b.bl) + '" target="_blank">📄 BL ' + esc(b.numBL) + '</a>' : '<span>BL à venir</span>') + '</div>' +
-        detailBon(b) +
+        (b.bl ? '<a href="' + esc(b.bl) + '" target="_blank">📄 BL ' + esc(b.numBL) + '</a>' : '<span>BL à venir</span>') +
+        boutonArticles(b, k) +
+        '<button onclick="ouvrirNote(\'' + k + '\')">📝 Note</button>' +
+        '<button onclick="choisirPhoto(\'' + k + '\')">📷 Photo</button>' + '</div>' +
+        (ouverts.has(k) ? detailBon(b) : '') +
         '<div class="st">' + STATUTS.map((s, j) => '<button class="s' + j + (j === i ? ' on' : '') + '" onclick="pointer(\'' + k + '\',' + j + ')">' + COURT[j] + '</button>').join('') + '</div>' +
         '</div>';
     }).join('') : '<p class="notice">' + (q ? 'Rien trouvé.' : filtreB === 'attente' ? 'Tout est pointé ✅' : 'Aucune commande pour le moment.') + '</p>';
@@ -626,17 +651,83 @@
       '<div class="art"><span>' + esc(a.nom || '—') + '<small>' + esc(a.ref || '') + (a.date ? ' · ' + esc(a.date) : '') + '</small></span><b>× ' + esc(a.qte) + '</b></div>').join('')
       : '<p class="notice">Résumé indisponible, ouvre le PDF.</p>');
   }
-  function detailBon(b) {
+  const ouverts = new Set();
+  const trouverBon = k => bons.find(x => x.cle.replace(/'/g, '') === k);
+  function boutonArticles(b, k) {
     const bl = b.articlesBL, ar = b.articlesAR;
     if (!bl && !ar) return '';
     const nb = (bl && bl.length ? bl : ar || []).length;
-    return '<details><summary>▾ Voir les articles' + (nb ? ' (' + nb + ')' : '') + '</summary>' +
+    return '<button class="' + (ouverts.has(k) ? 'on' : '') + '" onclick="basculerArticles(\'' + k + '\')">📦 Articles' + (nb ? ' (' + nb + ')' : '') + '</button>';
+  }
+  function basculerArticles(k) { ouverts.has(k) ? ouverts.delete(k) : ouverts.add(k); afficherBons(); }
+  function detailBon(b) {
+    const bl = b.articlesBL, ar = b.articlesAR;
+    return '<div class="arts">' +
       (b.bl && bl ? listeArt('Livré (BL ' + esc(b.numBL) + (b.dateBL ? ' du ' + esc(b.dateBL) : '') + ')', bl) : '') +
       (b.ar && ar ? listeArt('Commandé (AR' + (b.dateAR ? ' du ' + esc(b.dateAR) : '') + ')', ar) : '') +
-      '</details>';
+      '</div>';
   }
+  function noteBon(b, k) {
+    if (!b.note && !b.mini) return '';
+    return '<div class="noteBon">' +
+      (b.mini ? '<a href="' + esc(b.photo) + '" target="_blank"><img src="' + esc(b.mini) + '" alt="photo"></a>' : '') +
+      '<span onclick="ouvrirNote(\'' + k + '\')">' + (b.note ? '📝 ' + esc(b.note) : '<i>Ajouter une note…</i>') + '</span></div>';
+  }
+
+  // ---------- Note ----------
+  let noteCle = '';
+  function ouvrirNote(k) {
+    const b = trouverBon(k); if (!b) return;
+    noteCle = k;
+    $('noteTitre').textContent = 'Note — ' + (b.intervention || b.fournisseur);
+    $('noteTxt').value = b.note || '';
+    $('noteBox').classList.remove('hidden');
+    setTimeout(() => $('noteTxt').focus(), 50);
+  }
+  function fermerNote() { $('noteBox').classList.add('hidden'); }
+  function enregistrerNote() {
+    const b = trouverBon(noteCle); if (!b) return;
+    const avant = b.note, note = $('noteTxt').value.trim();
+    fermerNote();
+    if (note === (avant || '')) return;
+    b.note = note; afficherBons();
+    api('pointer', { cle: b.cle, note: note }).then(() => { info('📝 Note enregistrée'); sauverBons(); })
+      .catch(e => { b.note = avant; afficherBons(); info('Note non enregistrée, réessaie.', true); });
+  }
+
+  // ---------- Photo ----------
+  let photoCle = '';
+  function choisirPhoto(k) { photoCle = k; $('photoBon').click(); }
+  function reduire(img, max, qualite) {
+    const r = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', qualite);
+  }
+  function envoyerPhoto(input) {
+    const f = input.files && input.files[0];
+    input.value = '';
+    const b = trouverBon(photoCle);
+    if (!f || !b) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      const grande = reduire(img, 1400, 0.75), mini = reduire(img, 200, 0.6);
+      URL.revokeObjectURL(url);
+      const avant = { photo: b.photo, mini: b.mini };
+      b.mini = mini; afficherBons();
+      info('📷 Envoi de la photo…');
+      api('pointer', { cle: b.cle, photo: grande, mini: mini }).then(r => {
+        b.photo = r.photo; b.mini = r.mini; afficherBons(); sauverBons(); info('📷 Photo enregistrée');
+      }).catch(e => { b.photo = avant.photo; b.mini = avant.mini; afficherBons(); info('Photo non enregistrée, réessaie.', true); });
+    };
+    img.onerror = () => info('Photo illisible.', true);
+    img.src = url;
+  }
+  function sauverBons() { try { localStorage.setItem('reassort_bons', JSON.stringify(bons)); } catch (e) {} }
   function pointer(cle, j) {
-    const b = bons.find(x => x.cle.replace(/'/g, '') === cle);
+    const b = trouverBon(cle);
     if (!b || b.statut === STATUTS[j]) return;
     const avant = b.statut;
     b.statut = STATUTS[j];
