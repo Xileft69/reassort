@@ -13,7 +13,7 @@
   :root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b2938; background: #f8f9fb; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; }
-  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 230px; }
+  main { max-width: 600px; margin: auto; padding: calc(16px + env(safe-area-inset-top)) 14px 285px; }
   .row.zero { opacity: .45; }
   h1 { font-size: 26px; margin: 2px 0 4px; }
   small, .notice { color: #64748b; font-size: 14px; }
@@ -32,10 +32,30 @@
   .cmd .det .l span:first-child { flex: 1; }
   .cmd .det .l small { display: block; }
   .page { position: fixed; inset: 0; z-index: 4; overflow-y: auto; -webkit-overflow-scrolling: touch; background: #f8f9fb;
-    padding: calc(12px + env(safe-area-inset-top)) 14px calc(150px + env(safe-area-inset-bottom)); }
+    padding: calc(12px + env(safe-area-inset-top)) 14px calc(205px + env(safe-area-inset-bottom)); }
   .page > * { max-width: 600px; margin-left: auto; margin-right: auto; }
   .pageTop { position: sticky; top: 0; z-index: 1; padding: 4px 0; }
   #nav { position: fixed; left: 0; right: 0; bottom: calc(40px + env(safe-area-inset-bottom)); z-index: 6; display: flex; gap: 8px; padding: 8px 12px; background: #fff; border-top: 1px solid #e2e6ec; }
+  #nav { flex-wrap: wrap; }
+  #nav #nBons { flex: 1 1 100%; background: #078447; color: #fff; border-color: #078447; }
+  #nav #nBons.on { background: #1564d4; border-color: #1564d4; }
+  .panel.p-bons { background: #fff; border: 1px solid #e2e6ec; }
+  .bon { background: #fff; border: 1px solid #e1e8f0; border-radius: 12px; padding: 11px 12px; margin: 10px 0; }
+  .bon.st0 { border-left: 6px solid #d92d20; } .bon.st1 { border-left: 6px solid #f79009; } .bon.st2 { border-left: 6px solid #12b76a; }
+  .bon .haut { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .bon .inter { font-weight: 800; font-size: 16px; }
+  .bon .meta { font-size: 13px; color: #64748b; margin-top: 2px; }
+  .bon .docs { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .bon .docs a { font-size: 14px; font-weight: 700; color: #1754a7; background: #e8effa; padding: 7px 10px; border-radius: 9px; text-decoration: none; }
+  .bon .docs span { font-size: 14px; color: #94a3b8; padding: 7px 4px; }
+  .bon .st { display: flex; gap: 6px; }
+  .bon .st button { flex: 1; padding: 10px 4px; font-size: 13px; background: #f3f5f8; color: #475467; border: 1px solid #e2e6ec; }
+  .bon .st button.on.s0 { background: #d92d20; color: #fff; border-color: #d92d20; }
+  .bon .st button.on.s1 { background: #f79009; color: #fff; border-color: #f79009; }
+  .bon .st button.on.s2 { background: #12b76a; color: #fff; border-color: #12b76a; }
+  .filtres { display: flex; gap: 6px; margin: 8px 0; }
+  .filtres button { flex: 1; padding: 9px 4px; font-size: 13px; background: #f3f5f8; color: #475467; border: 1px solid #e2e6ec; }
+  .filtres button.on { background: #1564d4; color: #fff; border-color: #1564d4; }
   #nav button { flex: 1; padding: 12px; background: #f3f5f8; color: #1b2938; border: 1px solid #e2e6ec; }
   #nav button.on { background: #1564d4; color: #fff; border-color: #1564d4; }
   .panel { background: #fff; border-radius: 16px; padding: 14px; margin: 12px 0; box-shadow: 0 1px 6px #12233a1a; }
@@ -50,7 +70,7 @@
   #reader { width: 100%; border-radius: 12px; overflow: hidden; margin-top: 10px; }
   #reader video { border-radius: 12px; }
   .hidden { display: none !important; }
-  #last { position: fixed; left: 10px; right: 10px; bottom: calc(110px + env(safe-area-inset-bottom)); z-index: 7; max-width: 580px; margin: auto;
+  #last { position: fixed; left: 10px; right: 10px; bottom: calc(165px + env(safe-area-inset-bottom)); z-index: 7; max-width: 580px; margin: auto;
     font-size: 15px; padding: 10px 12px; border-radius: 10px; background: #eef7f1; color: #065f36; box-shadow: 0 2px 10px #12233a33; pointer-events: none; }
   #last.err { background: #fdecea; color: #b42318; }
   #last.flash { animation: flash .35s; }
@@ -154,7 +174,24 @@
   </div>
 </section>
 
+<section id="pgBons" class="page hidden">
+  <div class="pageTop"><button class="secondary" onclick="fermerPage()">← Retour au scan</button></div>
+  <div class="panel p-bons">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:18px">📦 Commandes reçues</b>
+      <small id="bCount"></small>
+    </div>
+    <input id="bCherche" type="text" placeholder="Chercher : chantier, fournisseur, n°…" autocomplete="off" oninput="afficherBons()">
+    <div class="filtres">
+      <button id="fAttente" class="on" onclick="filtreBons('attente')">À pointer</button>
+      <button id="fTout" onclick="filtreBons('tout')">Tout</button>
+    </div>
+    <div id="bons"><p class="notice">Chargement…</p></div>
+  </div>
+</section>
+
 <nav id="nav">
+  <button id="nBons" onclick="ouvrirPage('pgBons')">📦 Commande reçue</button>
   <button id="nFav" onclick="ouvrirPage('pgFav')">⭐ Favoris</button>
   <button id="nHisto" onclick="ouvrirPage('pgHisto')">📜 Historique</button>
 </nav>
@@ -528,12 +565,63 @@
     fermerPage();
     if (deja) return;
     $(id).classList.remove('hidden'); $(id).scrollTop = 0;
-    $(id === 'pgFav' ? 'nFav' : 'nHisto').classList.add('on');
+    $({ pgFav: 'nFav', pgHisto: 'nHisto', pgBons: 'nBons' }[id]).classList.add('on');
+    if (id === 'pgBons') chargerBons();
   }
   function fermerPage() {
-    ['pgFav', 'pgHisto'].forEach(p => $(p).classList.add('hidden'));
-    $('nFav').classList.remove('on'); $('nHisto').classList.remove('on');
+    ['pgFav', 'pgHisto', 'pgBons'].forEach(p => $(p).classList.add('hidden'));
+    ['nFav', 'nHisto', 'nBons'].forEach(b => $(b).classList.remove('on'));
     window.scrollTo(0, 0);
+  }
+
+  // ---------- Commandes reçues (AR / BL) ----------
+  const STATUTS = ['Pas reçu', 'Partiellement reçu', 'Totalement reçu'];
+  const COURT = ['Pas reçu', 'Partiel', 'Reçu'];
+  let bons = [], filtreB = 'attente';
+  try { bons = JSON.parse(localStorage.getItem('reassort_bons') || '[]'); } catch (e) {}
+  function chargerBons() {
+    afficherBons();
+    api('bons').then(r => {
+      bons = r.bons || [];
+      try { localStorage.setItem('reassort_bons', JSON.stringify(bons)); } catch (e) {}
+      afficherBons();
+    }).catch(e => { if (e.acces) { demanderCle(e.message); return; } info('Registre des commandes injoignable, réessaie.', true); });
+  }
+  function filtreBons(f) {
+    filtreB = f;
+    $('fAttente').classList.toggle('on', f === 'attente'); $('fTout').classList.toggle('on', f === 'tout');
+    afficherBons();
+  }
+  function afficherBons() {
+    const q = ($('bCherche').value || '').trim().toLowerCase();
+    const aPointer = bons.filter(b => b.statut !== 'Totalement reçu').length;
+    $('bCount').textContent = aPointer + ' à pointer';
+    let l = bons.filter(b => filtreB === 'tout' || q || b.statut !== 'Totalement reçu');
+    if (q) l = l.filter(b => [b.fournisseur, b.intervention, b.numCde, b.numBL, b.dateAR, b.dateBL].join(' ').toLowerCase().includes(q));
+    l = l.slice(0, 150);
+    $('bons').innerHTML = l.length ? l.map(b => {
+      const i = Math.max(0, STATUTS.indexOf(b.statut));
+      const k = esc(b.cle).replace(/'/g, '');
+      return '<div class="bon st' + i + '"><div class="haut"><span class="inter">' + esc(b.intervention || 'SANS-REF') + '</span>' +
+        '<small>' + esc(b.fournisseur) + '</small></div>' +
+        '<div class="meta">' + (b.numCde ? 'Cde ' + esc(b.numCde) + ' · ' : '') +
+        (b.dateAR ? 'AR ' + esc(b.dateAR) : 'pas d\'AR') + ' · ' + (b.dateBL ? 'BL ' + esc(b.dateBL) : 'BL pas encore reçu') + '</div>' +
+        '<div class="docs">' + (b.ar ? '<a href="' + esc(b.ar) + '" target="_blank">📄 AR</a>' : '') +
+        (b.bl ? '<a href="' + esc(b.bl) + '" target="_blank">📄 BL ' + esc(b.numBL) + '</a>' : '<span>BL à venir</span>') + '</div>' +
+        '<div class="st">' + STATUTS.map((s, j) => '<button class="s' + j + (j === i ? ' on' : '') + '" onclick="pointer(\'' + k + '\',' + j + ')">' + COURT[j] + '</button>').join('') + '</div>' +
+        '</div>';
+    }).join('') : '<p class="notice">' + (q ? 'Rien trouvé.' : filtreB === 'attente' ? 'Tout est pointé ✅' : 'Aucune commande pour le moment.') + '</p>';
+  }
+  function pointer(cle, j) {
+    const b = bons.find(x => x.cle.replace(/'/g, '') === cle);
+    if (!b || b.statut === STATUTS[j]) return;
+    const avant = b.statut;
+    b.statut = STATUTS[j];
+    afficherBons();
+    api('pointer', { cle: b.cle, statut: STATUTS[j] }).then(() => {
+      info('✓ ' + (b.intervention || b.fournisseur) + ' : ' + STATUTS[j]);
+      try { localStorage.setItem('reassort_bons', JSON.stringify(bons)); } catch (e) {}
+    }).catch(e => { b.statut = avant; afficherBons(); info('Pointage non enregistré, réessaie.', true); });
   }
 
   // ---------- Historique ----------
